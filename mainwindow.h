@@ -11,6 +11,11 @@
 #include <QTimer>
 #include "qcustomplot.h"
 
+#include <QTcpSocket>
+#include <QJsonDocument>
+#include <QJsonParseError>
+#include <QJsonObject>
+
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
@@ -48,6 +53,7 @@ class Manipulator {
 public:
     PaintInfo paint;    //Информация для рисования
     Manipulator(double x, double y, double R, int id, QColor color);
+    Manipulator();
     //Можно ли разместить манипулятор в данной точке?
     bool canMove(const Point& point) const;
     //Размещение манипулятора в новой точке
@@ -68,6 +74,9 @@ private slots:
     void timerAlarm();  //Слот обработки таймера на считывание данных
     void updateGraph(); //Слот обработки таймера на обновление графиков
 
+    void sockReady();
+    void sockDisc();
+
 private:
     Ui::MainWindow *ui;
     QTimer *timer;  //Таймер считывания
@@ -83,6 +92,12 @@ private:
 
     void addPoint(Point point, QColor color, int flag); //Добавление новой точки
     void draw(int id, Point start_point, Point end_point);  //Задание манипулятора на отрисовку
+
+    //Клиент-Сервер
+    QTcpSocket * socket;
+    QByteArray Data;
+    QJsonDocument doc;
+    QJsonParseError docError;
 };
 
 #endif // MAINWINDOW_H

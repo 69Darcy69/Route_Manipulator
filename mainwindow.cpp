@@ -17,6 +17,11 @@ time_timer(0), step(0.1), draw_timer(nullptr), count_manipulators(2), current_gr
     ui->linePlot->yAxis->setRange(-10, 4);
     ui->pointPlot->xAxis->setRange(-7, 4);
     ui->pointPlot->yAxis->setRange(-10, 4);
+    //Создание сокета и подключение к серверу
+    socket = new QTcpSocket(this);
+    connect(socket, &QTcpSocket::readyRead, this, &MainWindow::sockReady);
+    connect(socket, &QTcpSocket::disconnected, this, &MainWindow::sockDisc);
+    socket->connectToHost("127.0.0.1", 502);
 
         //------------Отладочная информация--------------
         qDebug().nospace() << "Приложение создано.";
@@ -38,6 +43,59 @@ MainWindow::~MainWindow() {
         //------------Отладочная информация--------------
         qDebug().nospace() << "Приложение закрыто.";
         //-----------------------------------------------
+}
+//Отключение сокета
+void MainWindow::sockDisc() {
+    socket->deleteLater();
+}
+//Обработчик поступающего сообщения
+void MainWindow::sockReady() {
+        socket->waitForReadyRead(500);
+        Data = socket->readAll();
+        doc = QJsonDocument::fromJson(Data, &docError);
+        if (docError.error == QJsonParseError::NoError) {
+            if (doc.isObject()) {
+                QJsonObject json = doc.object();
+                    if (json.contains("manipulator") && json.contains("x") && json.contains("y")) {
+                        int manipulator = json["manipulator"].toInt();
+                        double x = json["x"].toDouble();
+                        double y = json["y"].toDouble();
+                        qDebug() << "Получено:" << manipulator << x << y;
+                        if (manipulator == 1) {
+                            ui->editFeedbackX_1->setText(QString::number(x));
+                            ui->editFeedbackY_1->setText(QString::number(y));
+                        }
+                        else if (manipulator == 2) {
+                            ui->editFeedbackX_2->setText(QString::number(x));
+                            ui->editFeedbackY_2->setText(QString::number(y));
+                        }
+                        else {
+                            qWarning() << "Получен несуществующий манипулятор";
+                        }
+                    }
+                    else if (json.contains("manipulator") && json.contains("x1") && json.contains("y1") && json.contains("x2") && json.contains("y2")) {
+                        int manipulator = json["manipulator"].toInt();
+                        double x1 = json["x1"].toDouble();
+                        double y1 = json["y1"].toDouble();
+                        double x2 = json["x2"].toDouble();
+                        double y2 = json["y2"].toDouble();
+                        qDebug() << "Получено:" << manipulator << x1 << y1 << x2 << y2;
+                        ui->editFeedbackX_1->setText(QString::number(x1));
+                        ui->editFeedbackY_1->setText(QString::number(y1));
+                        ui->editFeedbackX_2->setText(QString::number(x2));
+                        ui->editFeedbackY_2->setText(QString::number(y2));
+                    }
+                    else {
+                        qWarning() << "JSON не соответвует ожидаемому";
+                    }
+            }
+            else {
+                qWarning() << "Полученный объект не является JSON";
+            }
+        }
+        else {
+            qWarning() << "Ошибка JSON:" << docError.errorString();
+        }
 }
 //Добавление новой точки
 void MainWindow::addPoint(Point point, QColor color, int flag)
@@ -243,6 +301,7 @@ void MainWindow::on_pushButtonRead_clicked() {
 
             fileIn = new QTextStream(&file);
             //Создание манипуляторов
+            Manipulator m1;
             manipulators.append(Manipulator(startX1, startY1, R1, 0, Qt::red));
             manipulators.append(Manipulator(startX2, startY2, R2, 1, Qt::blue));
 
@@ -251,6 +310,17 @@ void MainWindow::on_pushButtonRead_clicked() {
                 qDebug().nospace() << manipulators[1].getPosition();
                 //-----------------------------------------------
 
+            //Отправка стартовых точек
+            QJsonObject json;
+            json["manipulator"] = -1;
+            json["x1"] = QString::number(startX1);
+            json["y1"] = QString::number(startY1);
+            json["x2"] = QString::number(startX2);
+            json["y2"] = QString::number(startY2);
+            QByteArray packadge = QJsonDocument(json).toJson();
+            //Отправка данных через сокет
+            qDebug() << "Отправлено:" << packadge;
+            socket->write(packadge);
             //Отображение стартовых значений
             ui->editCurrentX_1->setText(QString::number(startX1));
             ui->editCurrentY_1->setText(QString::number(startY1));
@@ -317,6 +387,15 @@ void MainWindow::timerAlarm() {
                         draw(manipulators[0].paint.id, manipulators[0].getPosition(), point);
                         manipulators[0].move(point);
 
+                        //Создание JSON-объекта
+                        QJsonObject json;
+                        json["manipulator"] = 1;
+                        json["x"] = coords[0];
+                        json["y"] = coords[1];
+                        QByteArray packadge = QJsonDocument(json).toJson();
+                        //Отправка данных через сокет
+                        qDebug() << "Отправлено:" << packadge;
+                        socket->write(packadge);
 
                             //------------Отладочная информация--------------
                             qDebug().nospace() << "Перемещен 1 манипулятор.";
@@ -330,6 +409,16 @@ void MainWindow::timerAlarm() {
                         ui->editCurrentY_2->setText(coords[1]);
                         draw(manipulators[1].paint.id, manipulators[1].getPosition(), point);
                         manipulators[1].move(point);
+
+                        //Создание JSON-объекта
+                        QJsonObject json;
+                        json["manipulator"] = 2;
+                        json["x"] = coords[0];
+                        json["y"] = coords[1];
+                        QByteArray packadge = QJsonDocument(json).toJson();
+                        //Отправка данных через сокет
+                        qDebug() << "Отправлено:" << packadge;
+                        socket->write(packadge);
 
                             //------------Отладочная информация--------------
                             qDebug().nospace() << "Перемещен 2 манипулятор.";
@@ -345,6 +434,16 @@ void MainWindow::timerAlarm() {
                     draw(manipulators[0].paint.id, manipulators[0].getPosition(), point);
                     manipulators[0].move(point);
 
+                    //Создание JSON-объекта
+                    QJsonObject json;
+                    json["manipulator"] = 1;
+                    json["x"] = coords[0];
+                    json["y"] = coords[1];
+                    QByteArray packadge = QJsonDocument(json).toJson();
+                    //Отправка данных через сокет
+                    qDebug() << "Отправлено:" << packadge;
+                    socket->write(packadge);
+
                         //------------Отладочная информация--------------
                         qDebug().nospace() << "Перемещен 1 манипулятор.";
                         qDebug().nospace() << "Манипулятор 1: " << manipulators[0].getPosition();
@@ -357,6 +456,16 @@ void MainWindow::timerAlarm() {
                     ui->editCurrentY_2->setText(coords[1]);
                     draw(manipulators[1].paint.id, manipulators[1].getPosition(), point);
                     manipulators[1].move(point);
+
+                    //Создание JSON-объекта
+                    QJsonObject json;
+                    json["manipulator"] = 2;
+                    json["x"] = coords[0];
+                    json["y"] = coords[1];
+                    QByteArray packadge = QJsonDocument(json).toJson();
+                    //Отправка данных через сокет
+                    qDebug() << "Отправлено:" << packadge;
+                    socket->write(packadge);
 
                         //------------Отладочная информация--------------
                         qDebug().nospace() << "Перемещен 2 манипулятор.";
@@ -405,6 +514,10 @@ void MainWindow::timerAlarm() {
             ui->editCurrentY_1->clear();
             ui->editCurrentX_2->clear();
             ui->editCurrentY_2->clear();
+            ui->editFeedbackX_1->clear();
+            ui->editFeedbackY_1->clear();
+            ui->editFeedbackX_2->clear();
+            ui->editFeedbackY_2->clear();
         }
             //------------Отладочная информация--------------
             qDebug() << "Таймер чтения удален, файл закрыт, поля вывода очищены.";
