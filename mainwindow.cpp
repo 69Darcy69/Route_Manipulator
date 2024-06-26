@@ -61,13 +61,11 @@ void MainWindow::sockReady() {
                         double x = json["x"].toDouble();
                         double y = json["y"].toDouble();
                         qDebug() << "Получено:" << manipulator << x << y;
-                        if (manipulator == 1) {
-                            ui->editFeedbackX_1->setText(QString::number(x));
-                            ui->editFeedbackY_1->setText(QString::number(y));
-                        }
-                        else if (manipulator == 2) {
-                            ui->editFeedbackX_2->setText(QString::number(x));
-                            ui->editFeedbackY_2->setText(QString::number(y));
+                        QLineEdit* editFeedbackX = findChild<QLineEdit*>("editFeedbackX_" + QString::number(manipulator));
+                        QLineEdit* editFeedbackY = findChild<QLineEdit*>("editFeedbackY_" + QString::number(manipulator));
+                        if (editFeedbackX && editFeedbackY) {
+                            editFeedbackX->setText(QString::number(x));
+                            editFeedbackY->setText(QString::number(y));
                         }
                         else {
                             qWarning() << "Получен несуществующий манипулятор";
@@ -357,6 +355,29 @@ void MainWindow::on_pushButtonRead_clicked() {
         }
     }
 }
+void MainWindow::moveManipulator(int id, QStringList coords, Manipulator& manipulator, Point point){
+    QLineEdit* editCurrentX = findChild<QLineEdit*>("editCurrentX_" + QString::number(id));
+    QLineEdit* editCurrentY = findChild<QLineEdit*>("editCurrentY_" + QString::number(id));
+    editCurrentX->setText(coords[0]);
+    editCurrentY->setText(coords[1]);
+    draw(manipulator.paint.id, manipulator.getPosition(), point);
+    manipulator.move(point);
+    //Создание JSON-объекта
+    QJsonObject json;
+    json["manipulator"] = id;
+    json["x"] = coords[0];
+    json["y"] = coords[1];
+    QByteArray packadge = QJsonDocument(json).toJson();
+    //Отправка данных через сокет
+    qDebug() << "Отправлено:" << packadge;
+    socket->write(packadge);
+
+            //------------Отладочная информация--------------
+            qDebug().nospace() << "Перемещен " + QString::number(id) + " манипулятор.";
+            qDebug().nospace() << "Манипулятор 1: " << manipulators[0].getPosition();
+            qDebug().nospace() << "Манипулятор 2: " << manipulators[1].getPosition();
+            //-----------------------------------------------
+}
 //Обработка срабатывания таймера чтения
 void MainWindow::timerAlarm() {
     //Проверка на конец файла
@@ -382,96 +403,20 @@ void MainWindow::timerAlarm() {
                 //Можно разместить оба манипулятора
                     if (dist1 <= dist2) {
                     //Выгоднее разместить 1 манипулятор
-                        ui->editCurrentX_1->setText(coords[0]);
-                        ui->editCurrentY_1->setText(coords[1]);
-                        draw(manipulators[0].paint.id, manipulators[0].getPosition(), point);
-                        manipulators[0].move(point);
-
-                        //Создание JSON-объекта
-                        QJsonObject json;
-                        json["manipulator"] = 1;
-                        json["x"] = coords[0];
-                        json["y"] = coords[1];
-                        QByteArray packadge = QJsonDocument(json).toJson();
-                        //Отправка данных через сокет
-                        qDebug() << "Отправлено:" << packadge;
-                        socket->write(packadge);
-
-                            //------------Отладочная информация--------------
-                            qDebug().nospace() << "Перемещен 1 манипулятор.";
-                            qDebug().nospace() << "Манипулятор 1: " << manipulators[0].getPosition();
-                            qDebug().nospace() << "Манипулятор 2: " << manipulators[1].getPosition();
-                            //-----------------------------------------------
+                        moveManipulator(1, coords, manipulators[0], point);
                     }
                     else {
                       //Выгоднее разместить 2 манипулятор
-                        ui->editCurrentX_2->setText(coords[0]);
-                        ui->editCurrentY_2->setText(coords[1]);
-                        draw(manipulators[1].paint.id, manipulators[1].getPosition(), point);
-                        manipulators[1].move(point);
-
-                        //Создание JSON-объекта
-                        QJsonObject json;
-                        json["manipulator"] = 2;
-                        json["x"] = coords[0];
-                        json["y"] = coords[1];
-                        QByteArray packadge = QJsonDocument(json).toJson();
-                        //Отправка данных через сокет
-                        qDebug() << "Отправлено:" << packadge;
-                        socket->write(packadge);
-
-                            //------------Отладочная информация--------------
-                            qDebug().nospace() << "Перемещен 2 манипулятор.";
-                            qDebug().nospace() << "Манипулятор 1: " << manipulators[0].getPosition();
-                            qDebug().nospace() << "Манипулятор 2: " << manipulators[1].getPosition();
-                            //-----------------------------------------------
+                        moveManipulator(2, coords, manipulators[1], point);
                     }
                 }
                 else if (manipulators[0].canMove(point)) {
                   //Можно разместить только 1 манипулятор
-                    ui->editCurrentX_1->setText(coords[0]);
-                    ui->editCurrentY_1->setText(coords[1]);
-                    draw(manipulators[0].paint.id, manipulators[0].getPosition(), point);
-                    manipulators[0].move(point);
-
-                    //Создание JSON-объекта
-                    QJsonObject json;
-                    json["manipulator"] = 1;
-                    json["x"] = coords[0];
-                    json["y"] = coords[1];
-                    QByteArray packadge = QJsonDocument(json).toJson();
-                    //Отправка данных через сокет
-                    qDebug() << "Отправлено:" << packadge;
-                    socket->write(packadge);
-
-                        //------------Отладочная информация--------------
-                        qDebug().nospace() << "Перемещен 1 манипулятор.";
-                        qDebug().nospace() << "Манипулятор 1: " << manipulators[0].getPosition();
-                        qDebug().nospace() << "Манипулятор 2: " << manipulators[1].getPosition();
-                        //-----------------------------------------------
+                    moveManipulator(1, coords, manipulators[0], point);
                 }
                 else if (manipulators[1].canMove(point)) {
                   //Можно разместить только 2 манипулятор
-                    ui->editCurrentX_2->setText(coords[0]);
-                    ui->editCurrentY_2->setText(coords[1]);
-                    draw(manipulators[1].paint.id, manipulators[1].getPosition(), point);
-                    manipulators[1].move(point);
-
-                    //Создание JSON-объекта
-                    QJsonObject json;
-                    json["manipulator"] = 2;
-                    json["x"] = coords[0];
-                    json["y"] = coords[1];
-                    QByteArray packadge = QJsonDocument(json).toJson();
-                    //Отправка данных через сокет
-                    qDebug() << "Отправлено:" << packadge;
-                    socket->write(packadge);
-
-                        //------------Отладочная информация--------------
-                        qDebug().nospace() << "Перемещен 2 манипулятор.";
-                        qDebug().nospace() << "Манипулятор 1: " << manipulators[0].getPosition();
-                        qDebug().nospace() << "Манипулятор 2: " << manipulators[1].getPosition();
-                        //-----------------------------------------------
+                    moveManipulator(2, coords, manipulators[1], point);
                 }
                 else {
                   //Ни один манипулятор не может быть размещен
@@ -506,6 +451,8 @@ void MainWindow::timerAlarm() {
 
         delete timer;
         timer = nullptr;
+        delete draw_timer;
+        draw_timer = nullptr;
         file.close();
         QMessageBox::StandardButton its_ok = QMessageBox::information(this, "Завершено", "Работа с файлом завершена", QMessageBox::Ok);
         if (its_ok == QMessageBox::Ok){

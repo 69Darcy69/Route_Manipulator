@@ -18,10 +18,14 @@ DEFINES += QT_DEPRECATED_WARNINGS
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
+    manipulator.cpp \
+    point.cpp \
     qcustomplot.cpp
 
 HEADERS += \
     mainwindow.h \
+    manipulator.h \
+    point.h \
     qcustomplot.h
 
 FORMS += \
